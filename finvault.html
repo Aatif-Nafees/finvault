@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinVault — Personal Finance</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060B14;color:#E2E8F0;font-family:system-ui,-apple-system,sans-serif;min-height:100vh;font-size:15px}
+a{color:inherit;text-decoration:none}
+#topbar{background:#0D1526;border-bottom:1px solid #1E2D4A;padding:13px 20px;position:sticky;top:0;z-index:90}
+#topbar .inner{max-width:960px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#logo{font-size:17px;font-weight:800;color:#F0B429;letter-spacing:-0.5px}
+#logo span{font-size:11px;color:#64748B;font-weight:400;margin-left:8px}
+#topbar-actions{display:flex;gap:8px}
+#nav{background:#0D1526;border-bottom:1px solid #1E2D4A;overflow-x:auto;scrollbar-width:none}
+#nav::-webkit-scrollbar{display:none}
+#nav .inner{max-width:960px;margin:0 auto;display:flex}
+.nav-btn{background:none;border:none;border-bottom:2px solid transparent;color:#64748B;padding:11px 15px;cursor:pointer;font-size:13px;white-space:nowrap;transition:all 0.15s;font-family:inherit}
+.nav-btn.active{color:#F0B429;border-bottom-color:#F0B429;font-weight:600}
+#main{max-width:960px;margin:0 auto;padding:20px 16px}
+.card{background:#0D1526;border:1px solid #1E2D4A;border-radius:12px;padding:18px}
+.card-label{font-size:10px;color:#64748B;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
+.stat-val{font-size:21px;font-weight:800}
+.stat-sub{font-size:11px;color:#64748B;margin-top:3px}
+.row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.row .card{flex:1;min-width:120px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:16px}
+.btn,.btn-ghost,.btn-danger,.btn-warn{border:none;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px;font-family:inherit;transition:opacity 0.15s}
+.btn{background:#F0B429;color:#060B14}
+.btn-ghost{background:#1E2D4A;color:#E2E8F0}
+.btn-danger{background:#EF4444;color:#fff}
+.btn-warn{background:#F97316;color:#fff}
+.btn:hover,.btn-ghost:hover,.btn-danger:hover,.btn-warn:hover{opacity:0.85}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-full{width:100%;margin-top:4px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;color:#64748B;font-weight:500;margin-bottom:5px}
+.field input,.field select{width:100%;background:#060B14;border:1px solid #1E2D4A;border-radius:8px;padding:10px 12px;color:#E2E8F0;font-size:14px;font-family:inherit;outline:none;transition:border 0.15s}
+.field input:focus,.field select:focus{border-color:#F0B429}
+.field select option{background:#0D1526}
+.field-hint{font-size:10px;color:#64748B;margin-top:4px}
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+#modal-overlay.open{display:flex}
+#modal-box{background:#0D1526;border:1px solid #1E2D4A;border-radius:16px;padding:24px;width:100%;max-width:430px;max-height:90vh;overflow-y:auto}
+#modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+#modal-head h3{font-size:16px;font-weight:600}
+#modal-close{background:none;border:none;color:#64748B;font-size:22px;cursor:pointer;line-height:1;padding:0 4px}
+.list-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #1E2D4A}
+.list-row:last-child{border-bottom:none}
+.list-left{display:flex;align-items:center;gap:11px}
+.list-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.list-title{font-size:14px;color:#E2E8F0}
+.list-sub{font-size:10px;color:#64748B;margin-top:2px}
+.del-btn{background:none;border:none;color:#64748B;cursor:pointer;font-size:18px;padding:4px 6px;line-height:1}
+.del-btn:hover{color:#EF4444}
+.pbar{height:4px;background:#1E2D4A;border-radius:2px;overflow:hidden;margin-top:8px}
+.pbar-fill{height:100%;border-radius:2px;transition:width 0.4s}
+#hero{text-align:center;padding:26px 20px}
+#hero .nw-label{font-size:10px;color:#64748B;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px}
+#hero .nw-val{font-size:42px;font-weight:800;color:#F0B429;letter-spacing:-2px;margin-bottom:14px}
+#hero .nw-sub{display:flex;justify-content:center;gap:0;flex-wrap:wrap;margin-bottom:18px;border:1px solid #1E2D4A;border-radius:12px;overflow:hidden}
+#hero .nw-item{text-align:center;padding:12px 16px;flex:1;min-width:100px;border-right:1px solid #1E2D4A}
+#hero .nw-item:last-child{border-right:none}
+#hero .nw-item .l{font-size:9px;color:#64748B;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+#hero .nw-item .v{font-size:14px;font-weight:700}
+.news-card{border-left:3px solid #1E2D4A;padding:14px 16px;margin-bottom:10px;cursor:pointer;background:#0D1526;border-radius:0 8px 8px 0}
+.news-card:hover{border-left-color:#F0B429}
+.news-card.match{border-left-color:#F0B429}
+.news-tag{font-size:10px;color:#F0B429;font-weight:700;margin-bottom:4px}
+.news-title{font-size:13px;font-weight:500;line-height:1.5;margin-bottom:4px}
+.news-desc{font-size:11px;color:#64748B;line-height:1.5}
+.news-src{font-size:11px;color:#F0B429;margin-top:6px}
+.src-tab{background:#1E2D4A;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;color:#64748B;font-family:inherit;transition:all 0.15s}
+.src-tab.active{background:#F0B429;color:#060B14;font-weight:700}
+.bal-input{width:110px;background:#060B14;border:1px solid #1E2D4A;border-radius:6px;padding:6px 8px;color:#E2E8F0;font-size:13px;font-weight:700;font-family:inherit;text-align:right}
+.sec-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.sec-title{font-size:12px;color:#64748B}
+.inv-row{padding:14px 0;border-bottom:1px solid #1E2D4A}
+.inv-row:last-child{border-bottom:none}
+.inv-top{display:flex;justify-content:space-between;margin-bottom:10px}
+.inv-update{display:flex;align-items:center;gap:8px}
+.inv-update input{flex:1;background:#060B14;border:1px solid #1E2D4A;border-radius:6px;padding:6px 10px;color:#E2E8F0;font-size:12px;font-family:inherit}
+.bud-row{margin-bottom:10px;padding:14px 16px}
+.bud-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.bud-over{font-size:10px;color:#EF4444;margin-top:4px}
+.bud-input{width:90px;background:#060B14;border:1px solid #1E2D4A;border-radius:6px;padding:5px 8px;color:#E2E8F0;font-size:12px;font-family:inherit}
+.filter-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filter-bar select{background:#0D1526;border:1px solid #1E2D4A;border-radius:8px;padding:8px 12px;color:#E2E8F0;font-size:13px;font-family:inherit}
+/* Loan specific */
+.loan-card{border:1px solid #1E2D4A;border-radius:12px;padding:16px;margin-bottom:12px;position:relative}
+.loan-card.borrowed{border-left:3px solid #EF4444}
+.loan-card.given{border-left:3px solid #10B981}
+.loan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin:12px 0;background:#060B14;border-radius:8px;padding:12px}
+.loan-stat{text-align:center}
+.loan-stat .ls-val{font-size:14px;font-weight:700;color:#E2E8F0}
+.loan-stat .ls-lbl{font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.loan-header{display:flex;justify-content:space-between;align-items:flex-start}
+.loan-name{font-size:14px;font-weight:700}
+.loan-type{font-size:10px;color:#64748B;margin-top:2px}
+.loan-emi{font-size:16px;font-weight:800;color:#F0B429}
+.loan-emi-lbl{font-size:10px;color:#64748B}
+.sub-tab{display:flex;gap:8px;margin-bottom:16px}
+.sub-tab button{background:#1E2D4A;border:none;border-radius:8px;padding:7px 16px;font-size:13px;cursor:pointer;color:#64748B;font-family:inherit;font-weight:600}
+.sub-tab button.active{background:#F0B429;color:#060B14}
+.amort-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #1E2D4A}
+.amort-row:last-child{border:none}
+/* Helpers */
+.green{color:#10B981}.red{color:#EF4444}.gold{color:#F0B429}.muted{color:#64748B}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}
+.chart-wrap{position:relative;width:100%;height:150px}
+.empty{text-align:center;padding:36px 0;color:#64748B;font-size:13px}
+.divider{width:1px;background:#1E2D4A}
+.legend{display:flex;gap:14px;margin-top:8px;justify-content:center;flex-wrap:wrap}
+.legend span{font-size:11px;color:#64748B;display:flex;align-items:center;gap:5px}
+.legend i{width:8px;height:8px;border-radius:2px;display:inline-block}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="inner">
+    <div id="logo">FinVault <span id="nw-badge"></span></div>
+    <div id="topbar-actions">
+      <button class="btn btn-ghost btn-sm" onclick="exportData()" title="Download your data as a backup file">⬇ Export</button>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="Restore data from a backup file">⬆ Import<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
+      <button class="btn btn-ghost btn-sm" onclick="openModal('income')">+ Income</button>
+      <button class="btn btn-sm" onclick="openModal('expense')">+ Expense</button>
+    </div>
+  </div>
+</div>
+
+<div id="nav">
+  <div class="inner">
+    <button class="nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">🏠 Dashboard</button>
+    <button class="nav-btn" data-tab="expenses"    onclick="switchTab('expenses')">💸 Expenses</button>
+    <button class="nav-btn" data-tab="investments" onclick="switchTab('investments')">📈 Investments</button>
+    <button class="nav-btn" data-tab="accounts"    onclick="switchTab('accounts')">🏦 Accounts</button>
+    <button class="nav-btn" data-tab="loans"       onclick="switchTab('loans')">🏛️ Loans</button>
+    <button class="nav-btn" data-tab="budget"      onclick="switchTab('budget')">🎯 Budget</button>
+    <button class="nav-btn" data-tab="news"        onclick="switchTab('news')">📰 News</button>
+  </div>
+</div>
+
+<div id="main"></div>
+
+<div id="modal-overlay" onclick="overlayClick(event)">
+  <div id="modal-box">
+    <div id="modal-head">
+      <h3 id="modal-title"></h3>
+      <button id="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ── CONSTANTS ────────────────────────────────────────────────────────
+const CATS=[
+  {name:'Food & Dining',  emoji:'🍔',color:'#F59E0B'},
+  {name:'Transport',      emoji:'🚗',color:'#3B82F6'},
+  {name:'Shopping',       emoji:'🛍️',color:'#8B5CF6'},
+  {name:'Bills & Utilities',emoji:'💡',color:'#EC4899'},
+  {name:'Entertainment',  emoji:'🎬',color:'#F97316'},
+  {name:'Health',         emoji:'💊',color:'#10B981'},
+  {name:'Education',      emoji:'📚',color:'#06B6D4'},
+  {name:'Travel',         emoji:'✈️',color:'#84CC16'},
+  {name:'Housing',        emoji:'🏠',color:'#EF4444'},
+  {name:'Personal Care',  emoji:'💆',color:'#A78BFA'},
+  {name:'Gifts',          emoji:'🎁',color:'#FB7185'},
+  {name:'Other',          emoji:'💰',color:'#6B7280'}
+];
+const INV_TYPES=['Mutual Fund','Stocks','Fixed Deposit','PPF/EPF','Gold','Crypto','Real Estate','Other'];
+const ACC_TYPES=['Savings','Current','Wallet (UPI)','Cash','Credit Card'];
+const ACC_ICONS={'Savings':'🏦','Current':'🏢','Wallet (UPI)':'📱','Cash':'💵','Credit Card':'💳'};
+const INV_COLORS=['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#F97316','#06B6D4','#84CC16'];
+const LOAN_TYPES=['Home Loan','Car Loan','Personal Loan','Education Loan','Business Loan','Gold Loan','BNPL/Credit Line','Other'];
+
+// ── STATE ─────────────────────────────────────────────────────────────
+const EMPTY={accounts:[],expenses:[],income:[],investments:[],budgets:{},loans_borrowed:[],loans_given:[]};
+let S=(()=>{ try{return{...EMPTY,...JSON.parse(localStorage.getItem('fv4')||'{}')};}catch{return{...EMPTY};} })();
+const save=()=>localStorage.setItem('fv4',JSON.stringify(S));
+
+// Migrate old key if present
+(()=>{const old=localStorage.getItem('fv3');if(old&&!localStorage.getItem('fv4')){try{const d=JSON.parse(old);S={...EMPTY,...d,loans_borrowed:[],loans_given:[]};save();}catch{}}})();
+
+let currentTab='dashboard';
+let chartIncome=null,chartSpend=null,chartPort=null;
+let expFilter={month:thisYM(),cat:'All'};
+let newsSrc='ET Markets';
+let loanSubTab='borrowed';
+
+// ── HELPERS ───────────────────────────────────────────────────────────
+function fmt(n){return '₹'+Math.round(n||0).toLocaleString('en-IN');}
+function fmtD(n){return Math.round(n||0).toLocaleString('en-IN');}
+function today(){return new Date().toISOString().split('T')[0];}
+function thisYM(){return new Date().toISOString().slice(0,7);}
+function ym(d){return (d||'').slice(0,7);}
+function uid(){return Math.random().toString(36).slice(2,9);}
+function cat(name){return CATS.find(c=>c.name===name)||CATS[CATS.length-1];}
+
+// Months elapsed from a start date to today (whole months)
+function monthsElapsed(startDate){
+  const s=new Date(startDate+'T00:00:00');
+  const n=new Date();
+  return Math.max(0,(n.getFullYear()-s.getFullYear())*12+(n.getMonth()-s.getMonth()));
+}
+
+// ── LOAN MATH (REDUCING BALANCE EMI) ─────────────────────────────────
+// Formula: EMI = P × r × (1+r)^n / ((1+r)^n − 1)
+// Outstanding after k payments = P×(1+r)^k − EMI×((1+r)^k−1)/r
+function calcEMI(P,r,n){
+  if(r===0) return P/n;
+  const pow=Math.pow(1+r,n);
+  return P*r*pow/(pow-1);
+}
+function outstandingAfter(P,r,n,k,emi){
+  if(k<=0) return P;
+  if(r===0) return Math.max(0,P-emi*k);
+  return Math.max(0,P*Math.pow(1+r,k)-emi*((Math.pow(1+r,k)-1)/r));
+}
+function loanStats(loan){
+  const P=+loan.amount, roi=+loan.roi, n=+loan.tenure;
+  const r=roi/100/12; // monthly rate
+  const emi=calcEMI(P,r,n);
+  const k=Math.min(monthsElapsed(loan.startDate),n); // installments paid
+  const left=Math.max(0,n-k);
+  const outstanding=outstandingAfter(P,r,n,k,emi);
+  const principalPaid=P-outstanding;
+  const totalPaid=emi*k;
+  const interestPaid=Math.max(0,totalPaid-principalPaid);
+  const totalInterest=emi*n-P;
+  const pctDone=n>0?(k/n)*100:0;
+  return {emi,paid:k,left,outstanding,principalPaid,interestPaid,totalInterest,totalPaid,pctDone};
+}
+
+// ── LOANS GIVEN (SIMPLE INTEREST) ─────────────────────────────────────
+function loanGivenStats(loan){
+  const k=monthsElapsed(loan.startDate);
+  const roi=+loan.roi||0;
+  const interest=roi>0?(+loan.amount*(roi/100/12)*k):0;
+  return {amountGiven:+loan.amount,interestAccrued:interest,totalDue:+loan.amount+interest,months:k};
+}
+
+// ── COMPUTED ──────────────────────────────────────────────────────────
+function computed(){
+  const m=thisYM();
+  const mExp=S.expenses.filter(e=>ym(e.date)===m);
+  const mInc=S.income.filter(i=>ym(i.date)===m);
+  const liquid=S.accounts.reduce((s,a)=>s+(a.type==='Credit Card'?-1:1)*(+a.balance||0),0);
+  const invCost=S.investments.reduce((s,i)=>s+(+i.invested||0),0);
+  const invVal=S.investments.reduce((s,i)=>s+(+i.currentValue||0),0);
+  const totalExp=mExp.reduce((s,e)=>s+e.amount,0);
+  const totalInc=mInc.reduce((s,i)=>s+i.amount,0);
+  const saveRate=totalInc>0?((totalInc-totalExp)/totalInc)*100:0;
+  const catBreak=CATS.map(c=>({...c,total:mExp.filter(e=>e.category===c.name).reduce((s,e)=>s+e.amount,0)})).filter(c=>c.total>0);
+  const invGain=invVal-invCost;
+  // Loan liabilities and assets
+  const loanLiability=S.loans_borrowed.reduce((s,l)=>s+loanStats(l).outstanding,0);
+  const loanAsset=S.loans_given.reduce((s,l)=>s+loanGivenStats(l).totalDue,0);
+  const totalEMIThisMonth=S.loans_borrowed.reduce((s,l)=>{
+    const st=loanStats(l); return st.left>0?s+st.emi:s;
+  },0);
+  const netWorth=liquid+invVal-loanLiability+loanAsset;
+  return {m,mExp,mInc,liquid,invCost,invVal,totalExp,totalInc,saveRate,catBreak,invGain,
+          loanLiability,loanAsset,totalEMIThisMonth,netWorth};
+}
+
+// ── TAB / RENDER ──────────────────────────────────────────────────────
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  renderMain();
+}
+function renderMain(){
+  destroyCharts();
+  const c=computed();
+  document.getElementById('nw-badge').textContent='Net Worth: '+fmt(c.netWorth);
+  const renders={
+    dashboard:()=>renderDashboard(c),
+    expenses:()=>renderExpenses(),
+    investments:()=>renderInvestments(c),
+    accounts:()=>renderAccounts(c),
+    loans:()=>renderLoans(c),
+    budget:()=>renderBudget(c),
+    news:()=>renderNews()
+  };
+  document.getElementById('main').innerHTML=renders[currentTab]()||'';
+  initCharts(c);
+}
+function destroyCharts(){
+  [chartIncome,chartSpend,chartPort].forEach(ch=>{if(ch){try{ch.destroy();}catch(e){}}});
+  chartIncome=chartSpend=chartPort=null;
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────
+function renderDashboard(c){
+  const last6=Array.from({length:6},(_,i)=>{
+    const d=new Date(); d.setMonth(d.getMonth()-(5-i));
+    const mo=d.toISOString().slice(0,7);
+    const label=d.toLocaleString('default',{month:'short'});
+    return {label,
+      income:S.income.filter(x=>ym(x.date)===mo).reduce((s,x)=>s+x.amount,0),
+      expenses:S.expenses.filter(x=>ym(x.date)===mo).reduce((s,x)=>s+x.amount,0)};
+  });
+  window._chartData={last6,catBreak:c.catBreak};
+  const recent=[...S.expenses].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
+  const rateColor=c.saveRate>30?'#10B981':c.saveRate>15?'#F0B429':'#EF4444';
+  const activeLoanCount=S.loans_borrowed.filter(l=>loanStats(l).left>0).length;
+
+  return `
+<div id="hero" class="card mb16">
+  <div class="nw-label">Total Net Worth</div>
+  <div class="nw-val">${fmt(c.netWorth)}</div>
+  <div class="nw-sub">
+    <div class="nw-item"><div class="l">Cash</div><div class="v">${fmt(c.liquid)}</div></div>
+    <div class="nw-item"><div class="l">Investments</div><div class="v green">${fmt(c.invVal)}</div></div>
+    <div class="nw-item"><div class="l">Loan Due</div><div class="v red">−${fmt(c.loanLiability)}</div></div>
+    <div class="nw-item"><div class="l">Receivable</div><div class="v green">+${fmt(c.loanAsset)}</div></div>
+  </div>
+  <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap">
+    <button class="btn btn-ghost btn-sm" onclick="openModal('account')">+ Account</button>
+    <button class="btn btn-ghost btn-sm" onclick="openModal('investment')">+ Investment</button>
+    <button class="btn btn-ghost btn-sm" onclick="switchTab('loans')">🏛️ Loans</button>
+  </div>
+</div>
+
+<div class="row">
+  <div class="card"><div class="card-label">Income this month</div><div class="stat-val green">${fmt(c.totalInc)}</div></div>
+  <div class="card"><div class="card-label">Spent this month</div><div class="stat-val red">${fmt(c.totalExp)}</div></div>
+  <div class="card"><div class="card-label">Savings rate</div><div class="stat-val" style="color:${rateColor}">${Math.round(c.saveRate)}%</div><div class="stat-sub">${c.saveRate>30?'On track 🟢':c.saveRate>15?'Watch it 🟡':'Overspending 🔴'}</div></div>
+  ${c.totalEMIThisMonth>0?`<div class="card"><div class="card-label">EMI this month</div><div class="stat-val gold">${fmt(c.totalEMIThisMonth)}</div><div class="stat-sub">${activeLoanCount} active loan${activeLoanCount!==1?'s':''}</div></div>`:''}
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <div class="sec-title mb12">Income vs Expenses — Last 6 months</div>
+    <div class="chart-wrap"><canvas id="chart-income" role="img" aria-label="Income vs expenses bar chart"></canvas></div>
+    <div class="legend"><span><i style="background:#10B981"></i>Income</span><span><i style="background:#EF4444"></i>Expenses</span></div>
+  </div>
+  <div class="card">
+    <div class="sec-title mb12">Spending by Category — This month</div>
+    ${c.catBreak.length===0
+      ?'<div class="empty">No expenses this month</div>'
+      :`<div class="chart-wrap"><canvas id="chart-spend" role="img" aria-label="Category spending pie chart"></canvas></div>
+        <div class="legend">${c.catBreak.slice(0,4).map(x=>`<span><i style="background:${x.color}"></i>${x.name.split(' ')[0]}</span>`).join('')}</div>`}
+  </div>
+</div>
+
+<div class="card">
+  <div class="sec-title mb12">Recent Transactions</div>
+  ${recent.length===0
+    ?'<div class="empty">No expenses logged yet. Hit "+ Expense" to start.</div>'
+    :recent.map(e=>{const c2=cat(e.category);return`<div class="list-row">
+      <div class="list-left">
+        <div class="list-icon" style="background:${c2.color}22">${c2.emoji}</div>
+        <div><div class="list-title">${e.note||e.category}</div><div class="list-sub">${e.category} · ${e.date}</div></div>
+      </div>
+      <div class="red" style="font-size:14px;font-weight:700">−${fmt(e.amount)}</div>
+    </div>`;}).join('')}
+</div>`;
+}
+
+// ── EXPENSES ──────────────────────────────────────────────────────────
+function renderExpenses(){
+  const months=Array.from({length:12},(_,i)=>{const d=new Date();d.setMonth(d.getMonth()-i);return d.toISOString().slice(0,7);});
+  const filtered=S.expenses.filter(e=>ym(e.date)===expFilter.month&&(expFilter.cat==='All'||e.category===expFilter.cat)).sort((a,b)=>b.date.localeCompare(a.date));
+  const total=filtered.reduce((s,e)=>s+e.amount,0);
+  return `
+<div class="filter-bar">
+  <select onchange="expFilter.month=this.value;renderMain()">
+    ${months.map(m=>`<option value="${m}" ${m===expFilter.month?'selected':''}>${m}</option>`).join('')}
+  </select>
+  <select onchange="expFilter.cat=this.value;renderMain()">
+    <option value="All" ${expFilter.cat==='All'?'selected':''}>All Categories</option>
+    ${CATS.map(c=>`<option value="${c.name}" ${c.name===expFilter.cat?'selected':''}>${c.emoji} ${c.name}</option>`).join('')}
+  </select>
+  <div style="margin-left:auto;font-size:13px;color:#64748B">${filtered.length} entries · <b class="red">${fmt(total)}</b></div>
+</div>
+<div class="card">
+  ${filtered.length===0?'<div class="empty">No expenses for this period</div>'
+    :filtered.map(e=>{const c2=cat(e.category);return`<div class="list-row">
+      <div class="list-left">
+        <div class="list-icon" style="background:${c2.color}22">${c2.emoji}</div>
+        <div><div class="list-title">${e.note||e.category}</div><div class="list-sub">${e.category} · ${e.date}</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="red" style="font-size:14px;font-weight:700">−${fmt(e.amount)}</div>
+        <button class="del-btn" onclick="delExpense('${e.id}')">×</button>
+      </div>
+    </div>`;}).join('')}
+</div>`;
+}
+
+// ── INVESTMENTS ───────────────────────────────────────────────────────
+function renderInvestments(c){
+  const gainPct=c.invCost>0?(c.invGain/c.invCost)*100:0;
+  const byType=INV_TYPES.map((t,ti)=>({name:t,value:S.investments.filter(i=>i.type===t).reduce((s,i)=>s+(+i.currentValue||0),0),color:INV_COLORS[ti%8]})).filter(t=>t.value>0);
+  window._portData=byType;
+  return `
+<div class="row">
+  <div class="card"><div class="card-label">Total Invested</div><div class="stat-val">${fmt(c.invCost)}</div></div>
+  <div class="card"><div class="card-label">Current Value</div><div class="stat-val ${c.invVal>=c.invCost?'green':'red'}">${fmt(c.invVal)}</div></div>
+  <div class="card"><div class="card-label">Overall Return</div><div class="stat-val ${c.invGain>=0?'green':'red'}">${c.invGain>=0?'+':''}${fmt(c.invGain)}</div><div class="stat-sub">${gainPct>=0?'+':''}${gainPct.toFixed(1)}%</div></div>
+</div>
+${byType.length>0?`<div class="card mb16">
+  <div class="sec-title mb12">Portfolio Allocation</div>
+  <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+    <div style="width:140px;height:130px;flex-shrink:0;position:relative"><canvas id="chart-port" role="img" aria-label="Portfolio allocation pie chart"></canvas></div>
+    <div style="flex:1;min-width:140px">
+      ${byType.map(t=>`<div style="display:flex;justify-content:space-between;margin-bottom:7px;font-size:13px">
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:${t.color};display:inline-block"></span><span class="muted">${t.name}</span></span>
+        <span style="font-weight:600">${fmt(t.value)}</span></div>`).join('')}
+    </div>
+  </div>
+</div>`:''}
+<div class="card">
+  <div class="sec-head"><div class="sec-title">Holdings</div><button class="btn btn-sm" onclick="openModal('investment')">+ Add</button></div>
+  ${S.investments.length===0?'<div class="empty">No investments tracked yet</div>'
+    :S.investments.map(inv=>{const g=(+inv.currentValue||0)-(+inv.invested||0);const gp=inv.invested>0?(g/inv.invested)*100:0;return`<div class="inv-row">
+      <div class="inv-top">
+        <div><div style="font-size:14px;font-weight:600">${inv.name}</div><div class="list-sub">${inv.type} · Invested ${fmt(inv.invested)} · ${inv.date}</div></div>
+        <div style="text-align:right"><div style="font-size:15px;font-weight:800">${fmt(inv.currentValue)}</div><div style="font-size:11px" class="${g>=0?'green':'red'}">${g>=0?'+':''}${fmt(g)} (${gp>=0?'+':''}${gp.toFixed(1)}%)</div></div>
+      </div>
+      <div class="inv-update">
+        <span style="font-size:11px;color:#64748B;white-space:nowrap">Update value:</span>
+        <input type="number" value="${inv.currentValue||''}" onchange="updateInvValue('${inv.id}',this.value)">
+        <button class="del-btn" onclick="delInvestment('${inv.id}')">×</button>
+      </div>
+    </div>`;}).join('')}
+</div>`;
+}
+
+// ── ACCOUNTS ──────────────────────────────────────────────────────────
+function renderAccounts(c){
+  const ccOwed=S.accounts.filter(a=>a.type==='Credit Card').reduce((s,a)=>s+(+a.balance||0),0);
+  return `
+<div class="row">
+  <div class="card"><div class="card-label">Net Liquid Cash</div><div class="stat-val">${fmt(c.liquid)}</div></div>
+  <div class="card"><div class="card-label">Accounts</div><div class="stat-val">${S.accounts.length}</div><div class="stat-sub">tracked</div></div>
+  <div class="card"><div class="card-label">Credit Card Owed</div><div class="stat-val red">${fmt(ccOwed)}</div></div>
+</div>
+<div class="card">
+  <div class="sec-head"><div class="sec-title">All Accounts</div><button class="btn btn-sm" onclick="openModal('account')">+ Add</button></div>
+  ${S.accounts.length===0?'<div class="empty">Add your bank accounts, wallets, and cash</div>'
+    :S.accounts.map(acc=>`<div class="list-row">
+      <div class="list-left">
+        <div style="font-size:22px">${ACC_ICONS[acc.type]||'💰'}</div>
+        <div><div class="list-title">${acc.name}</div><div class="list-sub">${acc.type}</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="position:relative">
+          <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:#64748B">₹</span>
+          <input type="number" class="bal-input" value="${acc.balance}" onchange="updateBalance('${acc.id}',this.value)" style="padding-left:20px;color:${acc.type==='Credit Card'?'#EF4444':'#E2E8F0'}">
+        </div>
+        <button class="del-btn" onclick="delAccount('${acc.id}')">×</button>
+      </div>
+    </div>`).join('')}
+</div>`;
+}
+
+// ── LOANS ─────────────────────────────────────────────────────────────
+function renderLoans(c){
+  const activeBorrowed=S.loans_borrowed.filter(l=>loanStats(l).left>0);
+  const closedBorrowed=S.loans_borrowed.filter(l=>loanStats(l).left===0);
+  const totalOut=c.loanLiability;
+  const totalReceivable=c.loanAsset;
+  const totalEMI=c.totalEMIThisMonth;
+
+  return `
+<div class="row">
+  <div class="card"><div class="card-label">Total Outstanding</div><div class="stat-val red">${fmt(totalOut)}</div><div class="stat-sub">loans borrowed</div></div>
+  <div class="card"><div class="card-label">EMI This Month</div><div class="stat-val gold">${fmt(totalEMI)}</div><div class="stat-sub">${activeBorrowed.length} active loan${activeBorrowed.length!==1?'s':''}</div></div>
+  <div class="card"><div class="card-label">Receivable</div><div class="stat-val green">${fmt(totalReceivable)}</div><div class="stat-sub">loans given out</div></div>
+</div>
+
+<div class="sub-tab">
+  <button class="${loanSubTab==='borrowed'?'active':''}" onclick="loanSubTab='borrowed';renderMain()">🏛️ Loans I Borrowed</button>
+  <button class="${loanSubTab==='given'?'active':''}" onclick="loanSubTab='given';renderMain()">🤝 Loans I Gave</button>
+</div>
+
+${loanSubTab==='borrowed'?renderBorrowedLoans(activeBorrowed,closedBorrowed):renderGivenLoans()}`;
+}
+
+function renderBorrowedLoans(active,closed){
+  return `
+<div class="sec-head" style="margin-bottom:12px">
+  <div class="sec-title">Active Loans (${active.length})</div>
+  <button class="btn btn-sm" onclick="openModal('loan_borrow')">+ Add Loan</button>
+</div>
+${active.length===0?'<div class="card mb16"><div class="empty">No active loans. Add a bank loan or EMI.</div></div>'
+  :active.map(l=>loanCardHTML(l)).join('')}
+${closed.length>0?`
+<div class="sec-title mb12" style="margin-top:8px">Closed Loans (${closed.length})</div>
+${closed.map(l=>loanCardHTML(l,true)).join('')}`:''}`;
+}
+
+function loanCardHTML(loan,closed=false){
+  const st=loanStats(loan);
+  const pct=st.pctDone;
+  const barColor=pct>80?'#10B981':pct>50?'#F0B429':'#3B82F6';
+  return `<div class="loan-card borrowed ${closed?'':''}">
+    <div class="loan-header">
+      <div>
+        <div class="loan-name">${loan.name}</div>
+        <div class="loan-type">${loan.type} · Started ${loan.startDate} · ${loan.roi}% p.a.</div>
+      </div>
+      <div style="text-align:right">
+        <div class="loan-emi">${fmt(st.emi)}</div>
+        <div class="loan-emi-lbl">per month</div>
+      </div>
+    </div>
+    <div class="loan-grid">
+      <div class="loan-stat"><div class="ls-val">${fmt(loan.amount)}</div><div class="ls-lbl">Loan Amount</div></div>
+      <div class="loan-stat"><div class="ls-val">${fmtD(st.paid)} / ${fmtD(loan.tenure)}</div><div class="ls-lbl">EMIs Paid / Total</div></div>
+      <div class="loan-stat"><div class="ls-val" style="color:${closed?'#10B981':'#EF4444'}">${fmtD(st.left)}</div><div class="ls-lbl">EMIs Left</div></div>
+      <div class="loan-stat"><div class="ls-val red">${fmt(st.outstanding)}</div><div class="ls-lbl">Outstanding</div></div>
+      <div class="loan-stat"><div class="ls-val">${fmt(st.interestPaid)}</div><div class="ls-lbl">Interest Paid</div></div>
+      <div class="loan-stat"><div class="ls-val muted">${fmt(st.totalInterest)}</div><div class="ls-lbl">Total Interest</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#64748B;margin-bottom:4px">
+          <span>Repaid ${pct.toFixed(0)}%</span>
+          <span>${fmt(st.principalPaid)} of ${fmt(loan.amount)}</span>
+        </div>
+        <div class="pbar"><div class="pbar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+      </div>
+      <button class="del-btn" onclick="delLoanBorrowed('${loan.id}')">×</button>
+    </div>
+  </div>`;
+}
+
+function renderGivenLoans(){
+  const loans=S.loans_given;
+  return `
+<div class="sec-head" style="margin-bottom:12px">
+  <div class="sec-title">Money You've Lent (${loans.length})</div>
+  <button class="btn btn-sm" onclick="openModal('loan_give')">+ Add</button>
+</div>
+${loans.length===0?'<div class="card"><div class="empty">No loans given. Add money you\'ve lent to someone.</div></div>'
+  :loans.map(loan=>{
+    const st=loanGivenStats(loan);
+    return `<div class="loan-card given">
+      <div class="loan-header">
+        <div>
+          <div class="loan-name">${loan.name}</div>
+          <div class="loan-type">Given on ${loan.startDate}${loan.roi?` · ${loan.roi}% p.a.`:' · No interest'}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:16px;font-weight:800;color:#10B981">${fmt(st.totalDue)}</div>
+          <div class="loan-emi-lbl">total due now</div>
+        </div>
+      </div>
+      <div class="loan-grid">
+        <div class="loan-stat"><div class="ls-val">${fmt(st.amountGiven)}</div><div class="ls-lbl">Given</div></div>
+        <div class="loan-stat"><div class="ls-val green">${fmt(st.interestAccrued)}</div><div class="ls-lbl">Interest Accrued</div></div>
+        <div class="loan-stat"><div class="ls-val">${fmtD(st.months)} mo</div><div class="ls-lbl">Duration</div></div>
+        ${loan.note?`<div class="loan-stat" style="grid-column:span 2"><div class="ls-val" style="font-size:12px;font-weight:400">${loan.note}</div><div class="ls-lbl">Note</div></div>`:''}
+      </div>
+      <div style="display:flex;justify-content:flex-end">
+        <button class="del-btn" onclick="delLoanGiven('${loan.id}')">× Remove</button>
+      </div>
+    </div>`;
+  }).join('')}`;
+}
+
+// ── BUDGET ────────────────────────────────────────────────────────────
+function renderBudget(c){
+  const totalBudget=Object.values(S.budgets).reduce((s,v)=>s+(+v||0),0);
+  const totalSpent=c.mExp.reduce((s,e)=>s+e.amount,0);
+  return `
+<div class="row mb16">
+  <div class="card"><div class="card-label">Monthly Budget</div><div class="stat-val">${fmt(totalBudget)}</div></div>
+  <div class="card"><div class="card-label">Spent so far</div><div class="stat-val ${totalSpent>totalBudget?'red':''}">${fmt(totalSpent)}</div></div>
+  <div class="card"><div class="card-label">Remaining</div><div class="stat-val ${(totalBudget-totalSpent)<0?'red':'green'}">${fmt(Math.max(0,totalBudget-totalSpent))}</div></div>
+</div>
+<div style="font-size:11px;color:#64748B;margin-bottom:12px">Set monthly budget per category. Bars fill as you spend.</div>
+${CATS.map(cat2=>{
+  const spent=c.mExp.filter(e=>e.category===cat2.name).reduce((s,e)=>s+e.amount,0);
+  const budget=+S.budgets[cat2.name]||0;
+  const pct=budget>0?Math.min((spent/budget)*100,100):0;
+  const over=budget>0&&spent>budget;
+  return `<div class="card bud-row">
+    <div class="bud-top">
+      <span>${cat2.emoji} <span style="font-size:13px">${cat2.name}</span></span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;font-weight:600;color:${over?'#EF4444':'#E2E8F0'}">${fmt(spent)}</span>
+        <span class="muted" style="font-size:11px">/</span>
+        <input type="number" class="bud-input" value="${budget||''}" placeholder="Budget" onchange="updateBudget('${cat2.name}',this.value)">
+      </div>
+    </div>
+    ${budget>0?`<div class="pbar"><div class="pbar-fill" style="width:${pct}%;background:${over?'#EF4444':pct>80?'#F0B429':'#10B981'}"></div></div>`:''}
+    ${over?`<div class="bud-over">Over budget by ${fmt(spent-budget)}</div>`:''}
+  </div>`;}).join('')}`;
+}
+
+// ── NEWS ──────────────────────────────────────────────────────────────
+const NEWS_FEEDS={
+  'ET Markets':'https://economictimes.indiatimes.com/markets/rss.cms',
+  'ET Stocks': 'https://economictimes.indiatimes.com/markets/stocks/rss.cms',
+  'Mint':      'https://www.livemint.com/rss/markets',
+  'Bus. Standard':'https://www.business-standard.com/rss/markets-106.rss',
+};
+let newsCache={};
+function renderNews(){
+  const keywords=S.investments.map(i=>i.name.toLowerCase().split(/\s+/)[0]).filter(Boolean);
+  const srcTabs=Object.keys(NEWS_FEEDS).map(s=>`<button class="src-tab ${s===newsSrc?'active':''}" onclick="switchNews('${s}')">${s}</button>`).join('');
+  const arts=newsCache[newsSrc];
+  let content='';
+  if(!arts){content='<div class="empty" id="news-loading">Loading news…</div>';fetchNews(newsSrc,keywords);}
+  else if(arts==='error'){content='<div class="empty" style="color:#EF4444">Couldn\'t load news. Check your internet connection.</div>';}
+  else{content=arts.map(a=>{const isMatch=keywords.some(k=>a.title?.toLowerCase().includes(k));
+    return`<div class="news-card ${isMatch?'match':''}" onclick="openLink('${a.link}')">
+      ${isMatch?'<div class="news-tag">🎯 MATCHES YOUR HOLDINGS</div>':''}
+      <div class="news-title">${a.title||''}</div>
+      <div class="news-desc">${a.desc||''}</div>
+      <div class="news-src">Read on ${newsSrc} →</div>
+    </div>`;}).join('');}
+  return `
+<div class="card mb12" style="padding:10px 16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div style="font-size:11px;color:#64748B">${keywords.length>0?`Watching: ${keywords.slice(0,4).join(', ')}`:'Add investments to highlight matching news'}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${srcTabs}</div>
+  </div>
+</div>${content}`;
+}
+function switchNews(src){newsSrc=src;renderMain();}
+function openLink(url){if(!url)return;const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.click();}
+async function fetchNews(src,keywords){
+  try{
+    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(NEWS_FEEDS[src])}`);
+    const data=await res.json();
+    const xml=new DOMParser().parseFromString(data.contents,'text/xml');
+    const items=Array.from(xml.querySelectorAll('item')).slice(0,20).map(el=>({
+      title:el.querySelector('title')?.textContent?.replace(/\s+/g,' ').trim(),
+      link:el.querySelector('link')?.nextSibling?.textContent?.trim()||el.querySelector('link')?.textContent?.trim(),
+      desc:el.querySelector('description')?.textContent?.replace(/<[^>]*>/g,'').slice(0,110)+'…'
+    })).filter(a=>a.title);
+    newsCache[src]=items;
+  }catch(e){newsCache[src]='error';}
+  if(currentTab==='news') renderMain();
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────
+function initCharts(c){
+  const d=window._chartData;
+  if(d){
+    const ic=document.getElementById('chart-income');
+    if(ic){chartIncome=new Chart(ic,{type:'bar',data:{labels:d.last6.map(x=>x.label),datasets:[{label:'Income',data:d.last6.map(x=>x.income),backgroundColor:'#10B981',borderRadius:4,borderSkipped:false},{label:'Expenses',data:d.last6.map(x=>x.expenses),backgroundColor:'#EF4444',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+fmt(ctx.raw)}}},scales:{x:{ticks:{color:'#64748B',font:{size:10}},grid:{display:false},border:{display:false}},y:{display:false}}}});}
+    const sc=document.getElementById('chart-spend');
+    if(sc&&d.catBreak.length>0){chartSpend=new Chart(sc,{type:'doughnut',data:{labels:d.catBreak.map(x=>x.name),datasets:[{data:d.catBreak.map(x=>x.total),backgroundColor:d.catBreak.map(x=>x.color),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.raw)}`}}}}});}
+  }
+  const p=window._portData;
+  const pc=document.getElementById('chart-port');
+  if(pc&&p&&p.length>0){chartPort=new Chart(pc,{type:'doughnut',data:{labels:p.map(x=>x.name),datasets:[{data:p.map(x=>x.value),backgroundColor:p.map(x=>x.color),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'50%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.raw)}`}}}}});}
+}
+
+// ── DATA MUTATIONS ────────────────────────────────────────────────────
+function delExpense(id){S.expenses=S.expenses.filter(e=>e.id!==id);save();renderMain();}
+function delInvestment(id){S.investments=S.investments.filter(i=>i.id!==id);save();renderMain();}
+function delAccount(id){S.accounts=S.accounts.filter(a=>a.id!==id);save();renderMain();}
+function delLoanBorrowed(id){S.loans_borrowed=S.loans_borrowed.filter(l=>l.id!==id);save();renderMain();}
+function delLoanGiven(id){S.loans_given=S.loans_given.filter(l=>l.id!==id);save();renderMain();}
+function updateBalance(id,val){const a=S.accounts.find(a=>a.id===id);if(a){a.balance=parseFloat(val)||0;save();renderMain();}}
+function updateInvValue(id,val){const i=S.investments.find(i=>i.id===id);if(i){i.currentValue=parseFloat(val)||0;save();renderMain();}}
+function updateBudget(catName,val){S.budgets[catName]=parseFloat(val)||0;save();renderMain();}
+
+// ── MODALS ────────────────────────────────────────────────────────────
+function openModal(type){
+  const titles={expense:'Log Expense',income:'Log Income',investment:'Add Investment',account:'Add Account',loan_borrow:'Add Loan (Borrowed)',loan_give:'Add Loan Given'};
+  document.getElementById('modal-title').textContent=titles[type]||'';
+  document.getElementById('modal-body').innerHTML=modalBody(type);
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(()=>{const f=document.querySelector('#modal-body input');if(f)f.focus();},100);
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');}
+function overlayClick(e){if(e.target===document.getElementById('modal-overlay'))closeModal();}
+function g(id){return document.getElementById(id)?.value||'';}
+
+function modalBody(type){
+  const accOpts=S.accounts.filter(a=>a.type!=='Credit Card').map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+  const allAccOpts=S.accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+  const catOpts=CATS.map(c=>`<option value="${c.name}">${c.emoji} ${c.name}</option>`).join('');
+
+  if(type==='expense') return `
+    <div class="field"><label>Amount (₹)</label><input type="number" id="f-amt" placeholder="0" min="0"></div>
+    <div class="field"><label>Category</label><select id="f-cat">${catOpts}</select></div>
+    <div class="field"><label>Note (optional)</label><input type="text" id="f-note" placeholder="e.g. Lunch, Petrol, Zomato"></div>
+    <div class="field"><label>Date</label><input type="date" id="f-date" value="${today()}"></div>
+    ${accOpts?`<div class="field"><label>Deduct from account</label><select id="f-acc"><option value="">Don't deduct</option>${accOpts}</select></div>`:''}
+    <button class="btn btn-full" onclick="saveExpense()">Save Expense</button>`;
+
+  if(type==='income') return `
+    <div class="field"><label>Amount (₹)</label><input type="number" id="f-amt" placeholder="0" min="0"></div>
+    <div class="field"><label>Source</label><select id="f-src"><option>Salary</option><option>Freelance</option><option>Business</option><option>Investment Returns</option><option>Rental</option><option>Bonus</option><option>Gift</option><option>Other</option></select></div>
+    <div class="field"><label>Note (optional)</label><input type="text" id="f-note" placeholder="e.g. July salary"></div>
+    <div class="field"><label>Date</label><input type="date" id="f-date" value="${today()}"></div>
+    ${allAccOpts?`<div class="field"><label>Credit to account</label><select id="f-acc"><option value="">Don't credit</option>${allAccOpts}</select></div>`:''}
+    <button class="btn btn-full" onclick="saveIncome()">Save Income</button>`;
+
+  if(type==='investment') return `
+    <div class="field"><label>Name</label><input type="text" id="f-name" placeholder="e.g. HDFC Flexi Cap, Reliance, SGB 2026"></div>
+    <div class="field"><label>Type</label><select id="f-type">${INV_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+    <div class="field"><label>Amount Invested (₹)</label><input type="number" id="f-invested" placeholder="0" min="0"></div>
+    <div class="field"><label>Current Value (₹)</label><input type="number" id="f-cv" placeholder="Leave blank if same as invested" min="0"></div>
+    <div class="field"><label>Date</label><input type="date" id="f-date" value="${today()}"></div>
+    <div class="field"><label>Notes (optional)</label><input type="text" id="f-notes" placeholder="e.g. Monthly SIP ₹5,000"></div>
+    <button class="btn btn-full" onclick="saveInvestment()">Add to Portfolio</button>`;
+
+  if(type==='account') return `
+    <div class="field"><label>Account Name</label><input type="text" id="f-name" placeholder="e.g. HDFC Savings, PhonePe, Cash"></div>
+    <div class="field"><label>Type</label><select id="f-type">${ACC_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+    <div class="field"><label>Current Balance (₹)</label><input type="number" id="f-bal" placeholder="0" min="0"></div>
+    <div style="font-size:11px;color:#64748B;margin-bottom:14px">For Credit Cards, enter the outstanding amount you owe.</div>
+    <button class="btn btn-full" onclick="saveAccount()">Add Account</button>`;
+
+  if(type==='loan_borrow') return `
+    <div style="font-size:11px;color:#64748B;margin-bottom:16px;padding:10px;background:#060B14;border-radius:8px">
+      Enter 4 fields only. EMI, interest, and repayment schedule are calculated automatically using reducing balance method.
+    </div>
+    <div class="field"><label>Loan Name / Lender</label><input type="text" id="f-name" placeholder="e.g. HDFC Home Loan, Axis Car Loan"></div>
+    <div class="field"><label>Loan Type</label><select id="f-type">${LOAN_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+    <div class="field"><label>Loan Amount (₹)</label><input type="number" id="f-amount" placeholder="e.g. 3000000" min="0"></div>
+    <div class="field"><label>Start Date (first EMI month)</label><input type="date" id="f-date" value="${today()}"></div>
+    <div class="field"><label>Rate of Interest (% per annum)</label><input type="number" id="f-roi" placeholder="e.g. 8.5" step="0.01" min="0"></div>
+    <div class="field"><label>Total Tenure (months)</label><input type="number" id="f-tenure" placeholder="e.g. 240 for 20 years" min="1"></div>
+    <div id="emi-preview" style="background:#060B14;border-radius:8px;padding:12px;margin-bottom:16px;display:none">
+      <div style="font-size:10px;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Preview</div>
+      <div id="emi-val" style="font-size:22px;font-weight:800;color:#F0B429"></div>
+      <div id="emi-details" style="font-size:11px;color:#64748B;margin-top:4px"></div>
+    </div>
+    <button class="btn btn-full" onclick="saveLoanBorrow()">Add Loan</button>
+    <script>
+      ['f-amount','f-roi','f-tenure'].forEach(id=>{
+        document.getElementById(id)?.addEventListener('input',previewEMI);
+      });
+      function previewEMI(){
+        const P=parseFloat(document.getElementById('f-amount')?.value)||0;
+        const roi=parseFloat(document.getElementById('f-roi')?.value)||0;
+        const n=parseInt(document.getElementById('f-tenure')?.value)||0;
+        if(!P||!n){document.getElementById('emi-preview').style.display='none';return;}
+        const r=roi/100/12;
+        const emi=r===0?P/n:P*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);
+        const totalInterest=emi*n-P;
+        document.getElementById('emi-preview').style.display='block';
+        document.getElementById('emi-val').textContent='EMI: ₹'+Math.round(emi).toLocaleString('en-IN');
+        document.getElementById('emi-details').textContent='Total interest: ₹'+Math.round(totalInterest).toLocaleString('en-IN')+' · Total payment: ₹'+Math.round(emi*n).toLocaleString('en-IN');
+      }
+    <\/script>`;
+
+  if(type==='loan_give') return `
+    <div class="field"><label>Borrower Name</label><input type="text" id="f-name" placeholder="e.g. Rahul, Brother-in-law"></div>
+    <div class="field"><label>Amount Given (₹)</label><input type="number" id="f-amount" placeholder="0" min="0"></div>
+    <div class="field"><label>Date Given</label><input type="date" id="f-date" value="${today()}"></div>
+    <div class="field"><label>Rate of Interest (% p.a.) — 0 for interest-free</label><input type="number" id="f-roi" placeholder="0 for no interest" step="0.01" min="0" value="0"></div>
+    <div class="field"><label>Note (optional)</label><input type="text" id="f-note" placeholder="e.g. For house down payment"></div>
+    <button class="btn btn-full" onclick="saveLoanGive()">Add</button>`;
+}
+
+// ── SAVE FUNCTIONS ────────────────────────────────────────────────────
+function saveExpense(){
+  const amt=parseFloat(g('f-amt'));
+  if(!amt||amt<=0)return alert('Enter a valid amount');
+  const e={id:uid(),amount:amt,category:g('f-cat')||CATS[0].name,note:g('f-note'),date:g('f-date')||today()};
+  S.expenses.push(e);
+  const accId=g('f-acc');
+  if(accId){const acc=S.accounts.find(a=>a.id===accId);if(acc)acc.balance-=amt;}
+  save();closeModal();renderMain();
+}
+function saveIncome(){
+  const amt=parseFloat(g('f-amt'));
+  if(!amt||amt<=0)return alert('Enter a valid amount');
+  const i={id:uid(),amount:amt,source:g('f-src')||'Salary',note:g('f-note'),date:g('f-date')||today()};
+  S.income.push(i);
+  const accId=g('f-acc');
+  if(accId){const acc=S.accounts.find(a=>a.id===accId);if(acc)acc.balance+=amt;}
+  save();closeModal();renderMain();
+}
+function saveInvestment(){
+  const name=g('f-name'),invested=parseFloat(g('f-invested'));
+  if(!name||!invested||invested<=0)return alert('Enter name and invested amount');
+  const cv=parseFloat(g('f-cv'))||invested;
+  S.investments.push({id:uid(),name,type:g('f-type')||INV_TYPES[0],invested,currentValue:cv,notes:g('f-notes'),date:g('f-date')||today()});
+  save();closeModal();renderMain();
+}
+function saveAccount(){
+  const name=g('f-name');
+  if(!name)return alert('Enter account name');
+  S.accounts.push({id:uid(),name,type:g('f-type')||ACC_TYPES[0],balance:parseFloat(g('f-bal'))||0});
+  save();closeModal();renderMain();
+}
+function saveLoanBorrow(){
+  const name=g('f-name'),amount=parseFloat(g('f-amount')),roi=parseFloat(g('f-roi')),tenure=parseInt(g('f-tenure'));
+  if(!name||!amount||amount<=0)return alert('Enter loan name and amount');
+  if(isNaN(roi)||roi<0)return alert('Enter a valid rate of interest (0 or above)');
+  if(!tenure||tenure<1)return alert('Enter total tenure in months');
+  S.loans_borrowed.push({id:uid(),name,type:g('f-type')||LOAN_TYPES[0],amount,roi,tenure,startDate:g('f-date')||today()});
+  save();closeModal();loanSubTab='borrowed';renderMain();
+}
+function saveLoanGive(){
+  const name=g('f-name'),amount=parseFloat(g('f-amount'));
+  if(!name||!amount||amount<=0)return alert('Enter borrower name and amount');
+  S.loans_given.push({id:uid(),name,amount,roi:parseFloat(g('f-roi'))||0,startDate:g('f-date')||today(),note:g('f-note')});
+  save();closeModal();loanSubTab='given';renderMain();
+}
+
+// ── EXPORT / IMPORT ───────────────────────────────────────────────────
+function exportData(){
+  const json=JSON.stringify(S,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const date=new Date().toISOString().slice(0,10);
+  a.href=url; a.download=`finvault-backup-${date}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+function importData(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const parsed=JSON.parse(e.target.result);
+      const known=['accounts','expenses','income','investments','budgets','loans_borrowed','loans_given'];
+      if(!known.some(k=>k in parsed)) return alert('This does not look like a FinVault backup. Import cancelled.');
+      if(!confirm('This will replace ALL your current data with this backup.\n\nContinue?')) return;
+      S={...EMPTY,...parsed}; save(); renderMain();
+      alert('Done. Your data has been restored.');
+    }catch(err){ alert('Could not read this file. Make sure it is a valid FinVault JSON backup.'); }
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────
+renderMain();
+</script>
+</body>
+</html>
