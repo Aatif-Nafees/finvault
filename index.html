@@ -1026,6 +1026,14 @@ function importData(event){
 }
 
 // ── EMI AUTO-CHECK ────────────────────────────────────────────────────
+// ── EMI AUTO-CHECK ────────────────────────────────────────────────────
+// emiLog tracks which loan+month combos have been handled (logged or skipped)
+// Stored in localStorage separately so it persists without touching S
+function getEmiLog(){try{return JSON.parse(localStorage.getItem('fv5_emilog')||'{}');}catch{return{};}}
+function saveEmiLog(log){localStorage.setItem('fv5_emilog',JSON.stringify(log));}
+function emiHandled(loanId,monthStr){return !!getEmiLog()[loanId+'_'+monthStr];}
+function markEmiHandled(loanId,monthStr){const l=getEmiLog();l[loanId+'_'+monthStr]=1;saveEmiLog(l);}
+
 function emiPaidForMonth(loanId,monthStr){
   return S.expenses.some(e=>e.loanId===loanId&&e.category==='EMI'&&ym(e.date)===monthStr);
 }
@@ -1053,20 +1061,79 @@ function checkDueEMIs(){
     const st=loanStats(loan);
     if(st.left<=0)return;
     getDueEMIMonths(loan).forEach(({monthStr,dateStr})=>{
-      if(!emiPaidForMonth(loan.id,monthStr))pending.push({loan,monthStr,dateStr,emi:Math.round(st.emi)});
+      // Skip if already logged as expense OR already handled (logged/skipped)
+      if(!emiPaidForMonth(loan.id,monthStr)&&!emiHandled(loan.id,monthStr))
+        pending.push({loan,monthStr,dateStr,emi:Math.round(st.emi)});
     });
   });
   if(pending.length===0)return;
-  // Show one combined confirmation
-  const acc=id=>S.accounts.find(a=>a.id===id);
-  const lines=pending.map(p=>`• ${p.loan.name}: ₹${p.emi.toLocaleString('en-IN')} on ${p.dateStr} from ${acc(p.loan.emiAccountId)?.name||'account'}`).join('\n');
-  if(!confirm(`${pending.length} EMI payment${pending.length>1?'s':''} detected since your last visit:\n\n${lines}\n\nMark all as paid and deduct from accounts?`))return;
-  pending.forEach(({loan,monthStr,dateStr,emi})=>{
-    S.expenses.push({id:uid(),amount:emi,category:'EMI',note:`${loan.name} EMI`,date:dateStr,accountId:loan.emiAccountId,loanId:loan.id});
-    const a=acc(loan.emiAccountId);if(a)a.balance-=emi;
-  });
-  save();renderMain();
+  showEMIPanel(pending);
 }
+function showEMIPanel(pending){
+  // Remove any existing panel
+  document.getElementById('emi-panel')?.remove();
+  const acc=id=>S.accounts.find(a=>a.id===id);
+  const rows=pending.map((p,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #1E2D4A;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:13px;font-weight:600">${p.loan.name}</div>
+        <div style="font-size:10px;color:#64748B">${p.dateStr} · ${acc(p.loan.emiAccountId)?.name||'account'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;font-weight:700;color:#F0B429">₹${p.emi.toLocaleString('en-IN')}</span>
+        <button onclick="emiAction('log','${p.loan.id}','${p.monthStr}','${p.dateStr}',${p.emi},'${p.loan.emiAccountId}','${p.loan.name}')"
+          style="background:#10B981;border:none;border-radius:6px;padding:5px 10px;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Log & Deduct</button>
+        <button onclick="emiAction('skip','${p.loan.id}','${p.monthStr}','${p.dateStr}',${p.emi},'${p.loan.emiAccountId}','${p.loan.name}')"
+          style="background:#1E2D4A;border:none;border-radius:6px;padding:5px 10px;color:#94A3B8;font-size:11px;font-weight:700;cursor:pointer">Already in balance</button>
+      </div>
+    </div>`).join('');
+  const panel=document.createElement('div');
+  panel.id='emi-panel';
+  panel.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#0D1526;border-top:2px solid #F0B429;z-index:150;padding:14px 16px;max-height:60vh;overflow-y:auto;box-shadow:0 -4px 24px rgba(0,0,0,.5)';
+  panel.innerHTML=`
+    <div style="max-width:960px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div><span style="font-size:13px;font-weight:700;color:#F0B429">🏛️ ${pending.length} EMI${pending.length>1?'s':''} Due</span>
+        <span style="font-size:11px;color:#64748B;margin-left:8px">Choose action for each. "Already in balance" = you've already accounted for it manually.</span></div>
+        <button onclick="dismissEMIPanel()" style="background:none;border:none;color:#64748B;font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      ${rows}
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button onclick="emiActionAll('log')" style="background:#10B981;border:none;border-radius:6px;padding:7px 14px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Log & Deduct All</button>
+        <button onclick="emiActionAll('skip')" style="background:#1E2D4A;border:none;border-radius:6px;padding:7px 14px;color:#94A3B8;font-size:12px;font-weight:700;cursor:pointer">All Already in Balance</button>
+      </div>
+    </div>`;
+  document.body.appendChild(panel);
+  // Store pending for bulk actions
+  window._emiPending=pending;
+}
+function emiAction(action,loanId,monthStr,dateStr,emi,accountId,loanName){
+  if(action==='log'){
+    S.expenses.push({id:uid(),amount:emi,category:'EMI',note:`${loanName} EMI`,date:dateStr,accountId,loanId});
+    const a=S.accounts.find(a=>a.id===accountId);if(a)a.balance-=emi;
+    save();
+  }
+  markEmiHandled(loanId,monthStr);
+  // Remove this row from panel
+  const remaining=(window._emiPending||[]).filter(p=>!(p.loan.id===loanId&&p.monthStr===monthStr));
+  window._emiPending=remaining;
+  if(remaining.length===0){document.getElementById('emi-panel')?.remove();renderMain();}
+  else showEMIPanel(remaining);
+}
+function emiActionAll(action){
+  (window._emiPending||[]).forEach(p=>{
+    if(action==='log'){
+      S.expenses.push({id:uid(),amount:p.emi,category:'EMI',note:`${p.loan.name} EMI`,date:p.dateStr,accountId:p.loan.emiAccountId,loanId:p.loan.id});
+      const a=S.accounts.find(a=>a.id===p.loan.emiAccountId);if(a)a.balance-=p.emi;
+    }
+    markEmiHandled(p.loan.id,p.monthStr);
+  });
+  save();
+  document.getElementById('emi-panel')?.remove();
+  window._emiPending=[];
+  renderMain();
+}
+function dismissEMIPanel(){document.getElementById('emi-panel')?.remove();}
 
 // ── INIT ─────────────────────────────────────────────────────────────
 renderMain();
