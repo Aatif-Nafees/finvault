@@ -895,6 +895,9 @@ function modalBody(type,ex){
     <div class="field"><label>Start Date</label><input type="date" id="f-date" value="${v('startDate',today())}"></div>
     <div class="field"><label>Rate of Interest (% p.a.)</label><input type="number" id="f-roi" value="${v('roi')}" placeholder="e.g. 8.5" step="0.01" min="0" oninput="previewEMI()"></div>
     <div class="field"><label>Total Tenure (months)</label><input type="number" id="f-tenure" value="${v('tenure')}" placeholder="e.g. 240 = 20 years" min="1" oninput="previewEMI()"></div>
+    <div style="height:1px;background:#1E2D4A;margin:4px 0 14px"></div>
+    <div class="field"><label>EMI Deduction Date (day of month)</label><input type="number" id="f-emi-day" value="${v('emiDay','')}" placeholder="e.g. 5 means 5th of every month" min="1" max="31"><div class="hint">App will prompt you to confirm each EMI on this date when you open it.</div></div>
+    <div class="field"><label>Deduct EMI from Account</label><select id="f-emi-acc"><option value="">Select account</option>${accOpts(true).replace(`value="${v('emiAccountId')}"`,`value="${v('emiAccountId')}" selected`)}</select></div>
     <div class="emi-preview" id="emi-preview">
       <div style="font-size:10px;color:#64748B;margin-bottom:4px">PREVIEW</div>
       <div id="emi-val" style="font-size:20px;font-weight:800;color:#F0B429"></div>
@@ -968,7 +971,8 @@ function saveLoanBorrow(){
   if(!name||!amount)return alert('Enter name and amount');
   if(isNaN(roi)||roi<0)return alert('Enter a valid interest rate');
   if(!tenure||tenure<1)return alert('Enter tenure in months');
-  const obj={id:editingId||uid(),name,type:g('f-type')||LOAN_TYPES[0],amount,roi,tenure,startDate:g('f-date')||today()};
+  const obj={id:editingId||uid(),name,type:g('f-type')||LOAN_TYPES[0],amount,roi,tenure,startDate:g('f-date')||today(),
+             emiDay:parseInt(g('f-emi-day'))||null,emiAccountId:g('f-emi-acc')||''};
   upsert('loans_borrowed',obj);save();closeModal();loanSub='borrowed';renderMain();
 }
 function saveLoanGive(){
@@ -1021,8 +1025,52 @@ function importData(event){
   reader.readAsText(file);
 }
 
+// ── EMI AUTO-CHECK ────────────────────────────────────────────────────
+function emiPaidForMonth(loanId,monthStr){
+  return S.expenses.some(e=>e.loanId===loanId&&e.category==='EMI'&&ym(e.date)===monthStr);
+}
+function getDueEMIMonths(loan){
+  if(!loan.emiDay||!loan.emiAccountId)return[];
+  const start=new Date(loan.startDate+'T00:00:00');
+  const now=new Date();
+  const due=[];
+  let cur=new Date(start.getFullYear(),start.getMonth(),1);
+  let monthsFromStart=0;
+  while(monthsFromStart<+loan.tenure){
+    const monthStr=cur.toISOString().slice(0,7);
+    const dueDate=new Date(cur.getFullYear(),cur.getMonth(),+loan.emiDay);
+    if(dueDate>now)break;
+    if(dueDate>=start)due.push({monthStr,dateStr:dueDate.toISOString().split('T')[0]});
+    cur.setMonth(cur.getMonth()+1);
+    monthsFromStart++;
+  }
+  return due;
+}
+function checkDueEMIs(){
+  const pending=[];
+  S.loans_borrowed.forEach(loan=>{
+    if(!loan.emiDay||!loan.emiAccountId)return;
+    const st=loanStats(loan);
+    if(st.left<=0)return;
+    getDueEMIMonths(loan).forEach(({monthStr,dateStr})=>{
+      if(!emiPaidForMonth(loan.id,monthStr))pending.push({loan,monthStr,dateStr,emi:Math.round(st.emi)});
+    });
+  });
+  if(pending.length===0)return;
+  // Show one combined confirmation
+  const acc=id=>S.accounts.find(a=>a.id===id);
+  const lines=pending.map(p=>`• ${p.loan.name}: ₹${p.emi.toLocaleString('en-IN')} on ${p.dateStr} from ${acc(p.loan.emiAccountId)?.name||'account'}`).join('\n');
+  if(!confirm(`${pending.length} EMI payment${pending.length>1?'s':''} detected since your last visit:\n\n${lines}\n\nMark all as paid and deduct from accounts?`))return;
+  pending.forEach(({loan,monthStr,dateStr,emi})=>{
+    S.expenses.push({id:uid(),amount:emi,category:'EMI',note:`${loan.name} EMI`,date:dateStr,accountId:loan.emiAccountId,loanId:loan.id});
+    const a=acc(loan.emiAccountId);if(a)a.balance-=emi;
+  });
+  save();renderMain();
+}
+
 // ── INIT ─────────────────────────────────────────────────────────────
 renderMain();
+setTimeout(checkDueEMIs,600);
 </script>
 </body>
 </html>
