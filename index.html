@@ -724,7 +724,7 @@ function rRep(){
 }
 
 // ── NEWS ─────────────────────────────────────────────────────────────
-const NEWS_FEEDS={'ET Markets':'https://economictimes.indiatimes.com/markets/rss.cms','ET Stocks':'https://economictimes.indiatimes.com/markets/stocks/rss.cms','Mint':'https://www.livemint.com/rss/markets','Business Std':'https://www.business-standard.com/rss/markets-106.rss'};
+const NEWS_FEEDS={'Mint':'https://www.livemint.com/rss/markets','Hindu BL':'https://www.thehindubusinessline.com/markets/rss.cms','NDTV Profit':'https://feeds.feedburner.com/ndtvprofit-latest','Moneycontrol':'https://www.moneycontrol.com/rss/buzzingstocks.xml','Zee Business':'https://www.zeebiz.com/rss/markets.xml'};
 function rNews(){
   const kw=S.investments.map(i=>i.name.toLowerCase().split(/\s+/)[0]).filter(Boolean);
   const arts=newsCache[newsSrc];
