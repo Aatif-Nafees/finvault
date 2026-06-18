@@ -630,47 +630,66 @@ function loanCardHTML(l,closed=false){
 
 // ── RECURRING ────────────────────────────────────────────────────────
 function rRec(){
-  const active=S.recurring.filter(r=>r.active);
+  const now=today();
+  const isExpired=r=>r.endDate&&r.endDate<now;
+  // Auto-end expired items
+  S.recurring.forEach(r=>{if(isExpired(r)&&r.status!=='ended'){r.status='ended';r.active=false;}});
+  const active=S.recurring.filter(r=>r.status!=='ended'&&r.active!==false&&(r.status||'active')==='active');
+  const paused=S.recurring.filter(r=>r.status==='paused');
+  const ended=S.recurring.filter(r=>r.status==='ended');
   const monthly=active.filter(r=>r.frequency==='monthly');
   const totalCommitted=monthly.reduce((s,r)=>s+(+r.amount||0),0);
   const paidCount=monthly.filter(r=>recPaidThisMonth(r.id)).length;
+
+  const recCard=(r,mode)=>{
+    const paid=recPaidThisMonth(r.id);
+    const co=catObj(r.category);
+    const suffix=r.dayOfMonth?` · Due: ${r.dayOfMonth}${['th','st','nd','rd','th','th','th','th','th','th'][r.dayOfMonth%10]||'th'}` :'';
+    const dateLine=r.endDate?` · Ends ${r.endDate}`:r.startDate?` · Since ${r.startDate}`:'';
+    return`<div class="rec-card ${paid&&mode==='active'?'paid-card':''}" style="${mode==='paused'?'opacity:.7;border-style:dashed':''}${mode==='ended'?'opacity:.5':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="list-icon" style="background:${co.color}22">${co.emoji}</div>
+          <div><div style="font-size:13px;font-weight:600">${r.name}${mode==='paused'?'<span style="font-size:10px;color:#F0B429;margin-left:6px">PAUSED</span>':''}${mode==='ended'?'<span style="font-size:10px;color:#64748B;margin-left:6px">ENDED</span>':''}</div>
+          <div class="list-sub">${r.category} · ${r.frequency}${suffix}${dateLine}</div></div>
+        </div>
+        <div style="text-align:right"><div style="font-size:14px;font-weight:800">${fmt(r.amount)}</div>
+          ${mode==='active'?(paid?`<div style="font-size:10px;color:#10B981;font-weight:600">✓ Paid</div>`:`<div style="font-size:10px;color:#EF4444">Unpaid</div>`):''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        ${mode==='active'?`
+          ${paid?`<button class="btn-g btn-xs" disabled style="opacity:.5">✓ Paid</button>`:`<button class="btn-s btn-xs" onclick="markRecPaid('${r.id}')">✓ Mark Paid</button>`}
+          <button class="icon-btn" onclick="openEdit('recurring','${r.id}')">✏️</button>
+          <button class="btn-g btn-xs" onclick="pauseRec('${r.id}')">⏸ Pause</button>
+          <button class="btn-d btn-xs" onclick="endRec('${r.id}')">⏹ End</button>`:''}
+        ${mode==='paused'?`
+          <button class="btn-s btn-xs" onclick="resumeRec('${r.id}')">▶ Resume</button>
+          <button class="icon-btn" onclick="openEdit('recurring','${r.id}')">✏️</button>
+          <button class="btn-d btn-xs" onclick="endRec('${r.id}')">⏹ End</button>`:''}
+        ${mode==='ended'?`<button class="icon-btn red" onclick="del('recurring','${r.id}')">× Delete record</button>`:''}
+      </div>
+    </div>`;
+  };
+
   return `
 <div class="row">
   <div class="card"><div class="card-label">Monthly Committed</div><div class="stat-val">${fmt(totalCommitted)}</div></div>
   <div class="card"><div class="card-label">Paid This Month</div><div class="stat-val green">${paidCount} / ${monthly.length}</div></div>
-  <div class="card"><div class="card-label">Total Items</div><div class="stat-val">${active.length}</div></div>
-</div>
-<div class="hint mb12" style="padding:8px 12px;background:#0D1526;border-radius:7px;border:1px solid #1E2D4A">
-  Set up bills and subscriptions once. Hit "Mark Paid" each month — it logs the expense and deducts from your account automatically.
+  <div class="card"><div class="card-label">Active</div><div class="stat-val">${active.length}</div><div class="stat-sub">${paused.length} paused · ${ended.length} ended</div></div>
 </div>
 <div class="card">
-  <div class="sec-head"><div class="sec-title">All Recurring (${active.length})</div><button class="btn btn-sm" onclick="openModal('recurring')">+ Add</button></div>
-  ${active.length===0?'<div class="empty">No recurring items yet. Add your phone bill, electricity, rent, subscriptions.</div>'
-    :active.map(r=>{
-      const paid=recPaidThisMonth(r.id);
-      const co=catObj(r.category);
-      return`<div class="rec-card ${paid?'paid-card':''}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div style="display:flex;gap:10px;align-items:center">
-            <div class="list-icon" style="background:${co.color}22">${co.emoji}</div>
-            <div><div style="font-size:13px;font-weight:600">${r.name}</div>
-            <div class="list-sub">${r.category} · ${r.frequency}${r.dayOfMonth?` · Due: ${r.dayOfMonth}${['th','st','nd','rd','th','th','th','th','th','th'][r.dayOfMonth%10]||'th'}`:''}</div>
-            </div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:14px;font-weight:800">${fmt(r.amount)}</div>
-            ${paid?`<div style="font-size:10px;color:#10B981;font-weight:600">✓ Paid this month</div>`
-                  :`<div style="font-size:10px;color:#EF4444">Not paid yet</div>`}
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-          ${paid?`<button class="btn-g btn-xs" disabled style="opacity:.5">✓ Marked Paid</button>`
-                :`<button class="btn-s btn-xs" onclick="markRecPaid('${r.id}')">✓ Mark as Paid</button>`}
-          <button class="icon-btn" onclick="openEdit('recurring','${r.id}')">✏️</button>
-          <button class="btn-d btn-xs" onclick="del('recurring','${r.id}')">Remove</button>
-        </div>
-      </div>`;}).join('')}
-</div>`;
+  <div class="sec-head"><div class="sec-title">Active (${active.length})</div><button class="btn btn-sm" onclick="openModal('recurring')">+ Add</button></div>
+  ${active.length===0?'<div class="empty">No active recurring items.</div>':active.map(r=>recCard(r,'active')).join('')}
+</div>
+${paused.length>0?`<div class="card" style="margin-top:12px">
+  <div class="sec-title mb12">Paused (${paused.length})</div>
+  ${paused.map(r=>recCard(r,'paused')).join('')}
+</div>`:''}
+${ended.length>0?`<div class="card" style="margin-top:12px">
+  <div class="sec-title mb12">Ended (${ended.length})</div>
+  ${ended.map(r=>recCard(r,'ended')).join('')}
+</div>`:''}`;
 }
 
 // ── BUDGET ───────────────────────────────────────────────────────────
@@ -854,6 +873,9 @@ function updBal(id,v){const a=S.accounts.find(a=>a.id===id);if(a){a.balance=pars
 function updInv(id,v){const i=S.investments.find(i=>i.id===id);if(i){i.currentValue=parseFloat(v)||0;save();renderMain();}}
 function updSIP(id,v){const p=S.sips.find(p=>p.id===id);if(p){p.currentValue=parseFloat(v)||0;save();renderMain();}}
 function updBud(cat,v){S.budgets[cat]=parseFloat(v)||0;save();renderMain();}
+function pauseRec(id){const r=S.recurring.find(x=>x.id===id);if(r){r.status='paused';r.active=false;save();renderMain();}}
+function resumeRec(id){const r=S.recurring.find(x=>x.id===id);if(r){r.status='active';r.active=true;save();renderMain();}}
+function endRec(id){if(!confirm('Mark this as ended? It stays in history but stops prompting.'))return;const r=S.recurring.find(x=>x.id===id);if(r){r.status='ended';r.active=false;r.endDate=r.endDate||today();save();renderMain();}}
 function markRecPaid(id){
   const r=S.recurring.find(x=>x.id===id);
   if(!r||recPaidThisMonth(id))return;
@@ -982,6 +1004,14 @@ function modalBody(type,ex){
     <div class="field"><label>Amount (₹)</label><input type="number" id="f-amount" value="${v('amount')}" placeholder="0" min="0"></div>
     <div class="field"><label>Frequency</label><select id="f-freq">${FREQ.map(f=>`<option ${v('frequency','monthly')===f?'selected':''}>${f}</option>`).join('')}</select></div>
     <div class="field"><label>Day of Month (due date)</label><input type="number" id="f-day" value="${v('dayOfMonth','')}" placeholder="e.g. 5 for 5th of every month" min="1" max="31"></div>
+    <div class="field"><label>Start Date</label><input type="date" id="f-start" value="${v('startDate',today())}"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <input type="checkbox" id="f-ongoing" ${!v('endDate','')?'checked':''} onchange="document.getElementById('f-end-wrap').style.display=this.checked?'none':'block'">
+      <label for="f-ongoing" style="font-size:12px;color:#E2E8F0;cursor:pointer">Ongoing (no end date)</label>
+    </div>
+    <div id="f-end-wrap" style="display:${v('endDate','')?'block':'none'}">
+      <div class="field"><label>End Date</label><input type="date" id="f-end" value="${v('endDate','')}"><div class="hint">After this date the item moves to Ended and stops prompting.</div></div>
+    </div>
     ${accOpts(false)?`<div class="field"><label>Charge to account when marked paid <span style="font-size:10px;color:#64748B">(bank deducts · 💳 CC adds to outstanding)</span></label><select id="f-acc"><option value="">Don't track</option>${accOpts(false)}</select></div>`:''}
     <button class="btn btn-full" onclick="saveRecurring()">${ex?'Update':'Add Recurring'}</button>`;
 
@@ -1059,7 +1089,13 @@ function saveLoanGive(){
 function saveRecurring(){
   const name=g('f-name'),amount=parseFloat(g('f-amount'));
   if(!name||!amount)return alert('Enter name and amount');
-  const obj={id:editingId||uid(),name,category:g('f-cat')||CATS[0].name,amount,frequency:g('f-freq')||'monthly',dayOfMonth:parseInt(g('f-day'))||null,accountId:g('f-acc')||'',active:true};
+  const ongoing=document.getElementById('f-ongoing')?.checked!==false;
+  const endDate=ongoing?'':g('f-end')||'';
+  const existing=S.recurring.find(r=>r.id===editingId);
+  const obj={id:editingId||uid(),name,category:g('f-cat')||CATS[0].name,amount,
+             frequency:g('f-freq')||'monthly',dayOfMonth:parseInt(g('f-day'))||null,
+             accountId:g('f-acc')||'',startDate:g('f-start')||today(),
+             endDate,status:existing?.status||'active',active:existing?.status!=='paused'};
   upsert('recurring',obj);save();closeModal();renderMain();
 }
 function saveSIP(){
