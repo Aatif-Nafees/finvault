@@ -107,6 +107,7 @@ body{background:#060B14;color:#E2E8F0;font-family:system-ui,-apple-system,sans-s
 .green{color:#10B981}.red{color:#EF4444}.gold{color:#F0B429}.muted{color:#64748B}
 .mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb14{margin-bottom:14px}
 .emi-preview{background:#060B14;border-radius:7px;padding:10px;margin-bottom:12px;display:none}
+.cc-pay-badge{background:#EF444420;border:1px solid #EF4444;border-radius:6px;padding:3px 8px;font-size:10px;color:#EF4444;font-weight:600}
 </style>
 </head>
 <body>
@@ -490,26 +491,79 @@ ${byType.length>0?`<div class="card mb14"><div class="sec-title mb8">Portfolio A
 // ── ACCOUNTS ──────────────────────────────────────────────────────────
 function rAcc(c){
   const ccOwed=S.accounts.filter(a=>a.type==='Credit Card').reduce((s,a)=>s+(+a.balance||0),0);
+  const ccLimit=S.accounts.filter(a=>a.type==='Credit Card').reduce((s,a)=>s+(+a.ccLimit||0),0);
+  const now=new Date();
   return `
 <div class="row">
   <div class="card"><div class="card-label">Net Liquid</div><div class="stat-val">${fmt(c.liquid)}</div></div>
+  <div class="card"><div class="card-label">CC Outstanding</div><div class="stat-val red">${fmt(ccOwed)}</div><div class="stat-sub">${ccLimit>0?`of ${fmt(ccLimit)} limit`:''}</div></div>
   <div class="card"><div class="card-label">Accounts</div><div class="stat-val">${S.accounts.length}</div></div>
-  <div class="card"><div class="card-label">CC Outstanding</div><div class="stat-val red">${fmt(ccOwed)}</div></div>
 </div>
 <div class="card">
   <div class="sec-head"><div class="sec-title">All Accounts</div><button class="btn btn-sm" onclick="openModal('account')">+ Add</button></div>
   ${S.accounts.length===0?'<div class="empty">Add your bank accounts and wallets</div>'
-    :S.accounts.map(a=>`<div class="list-row">
-      <div class="list-left"><div style="font-size:20px">${ACC_ICONS[a.type]||'💰'}</div>
-      <div><div class="list-title">${a.name}</div><div class="list-sub">${a.type}</div></div></div>
-      <div class="row-actions">
-        <div style="position:relative"><span style="position:absolute;left:7px;top:50%;transform:translateY(-50%);font-size:11px;color:#64748B">₹</span>
-        <input type="number" class="bal-inp" value="${a.balance}" onchange="updBal('${a.id}',this.value)" style="padding-left:18px;color:${a.type==='Credit Card'?'#EF4444':'#E2E8F0'}"></div>
-        <button class="icon-btn" onclick="openEdit('account','${a.id}')">✏️</button>
-        <button class="icon-btn red" onclick="del('accounts','${a.id}')">×</button>
-      </div>
-    </div>`).join('')}
+    :S.accounts.map(a=>{
+      const isCC=a.type==='Credit Card';
+      const avail=isCC&&a.ccLimit?(+a.ccLimit||0)-(+a.balance||0):null;
+      let dueInfo='';
+      if(isCC&&a.ccDueDate){
+        const dueThisMonth=new Date(now.getFullYear(),now.getMonth(),a.ccDueDate);
+        const dueNextMonth=new Date(now.getFullYear(),now.getMonth()+1,a.ccDueDate);
+        const dueDate=dueThisMonth>=now?dueThisMonth:dueNextMonth;
+        const daysLeft=Math.ceil((dueDate-now)/(1000*60*60*24));
+        dueInfo=`<div style="font-size:10px;margin-top:3px;color:${daysLeft<=3?'#EF4444':daysLeft<=7?'#F0B429':'#64748B'}">Due in ${daysLeft}d (${dueDate.toLocaleDateString('en-IN',{day:'numeric',month:'short'})})</div>`;
+      }
+      return`<div>
+        <div class="list-row">
+          <div class="list-left"><div style="font-size:20px">${ACC_ICONS[a.type]||'💰'}</div>
+          <div><div class="list-title">${a.name}</div><div class="list-sub">${a.type}${isCC&&a.ccAPR?` · ${a.ccAPR}% p.a.`:''}</div>${dueInfo}</div></div>
+          <div class="row-actions">
+            <div style="position:relative"><span style="position:absolute;left:7px;top:50%;transform:translateY(-50%);font-size:11px;color:#64748B">₹</span>
+            <input type="number" class="bal-inp" value="${a.balance}" onchange="updBal('${a.id}',this.value)" style="padding-left:18px;color:${isCC?'#EF4444':'#E2E8F0'}"></div>
+            ${isCC&&a.balance>0?`<button class="btn-s btn-xs" onclick="openCCPayModal('${a.id}')">Pay</button>`:''}
+            <button class="icon-btn" onclick="openEdit('account','${a.id}')">✏️</button>
+            <button class="icon-btn red" onclick="del('accounts','${a.id}')">×</button>
+          </div>
+        </div>
+        ${isCC&&avail!==null?`<div style="padding:6px 0 8px 46px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#64748B;margin-bottom:3px"><span>Used: ${fmt(a.balance)}</span><span>Available: ${fmt(Math.max(0,avail))}</span></div>
+          <div class="pbar"><div class="pbar-fill" style="width:${a.ccLimit>0?Math.min((+a.balance/+a.ccLimit)*100,100):0}%;background:${(+a.balance/+a.ccLimit)>.8?'#EF4444':(+a.balance/+a.ccLimit)>.5?'#F0B429':'#10B981'}"></div></div>
+        </div>`:''}
+      </div>`;}).join('')}
 </div>`;
+}
+
+function openCCPayModal(accId){
+  const acc=S.accounts.find(a=>a.id===accId);
+  if(!acc)return;
+  const bankOpts=S.accounts.filter(a=>a.type!=='Credit Card').map(a=>`<option value="${a.id}">${a.name} (${fmt(a.balance)})</option>`).join('');
+  document.getElementById('modal-title').textContent=`Pay ${acc.name}`;
+  document.getElementById('modal-body').innerHTML=`
+    <div style="background:#060B14;border-radius:8px;padding:12px;margin-bottom:14px;text-align:center">
+      <div style="font-size:10px;color:#64748B;margin-bottom:4px">OUTSTANDING BALANCE</div>
+      <div style="font-size:28px;font-weight:800;color:#EF4444">${fmt(acc.balance)}</div>
+    </div>
+    <div class="field"><label>Payment Amount (₹)</label><input type="number" id="cc-pay-amt" value="${acc.balance}" min="0"></div>
+    <div class="field"><label>Pay from Account</label><select id="cc-pay-from">${bankOpts||'<option value="">No bank accounts added</option>'}</select></div>
+    <div class="field"><label>Date</label><input type="date" id="cc-pay-date" value="${today()}"></div>
+    <button class="btn btn-full" onclick="payCreditCard('${accId}')">Confirm Payment</button>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function payCreditCard(accId){
+  const acc=S.accounts.find(a=>a.id===accId);
+  if(!acc)return;
+  const amt=parseFloat(document.getElementById('cc-pay-amt')?.value)||0;
+  const fromId=document.getElementById('cc-pay-from')?.value;
+  const date=document.getElementById('cc-pay-date')?.value||today();
+  if(!amt||amt<=0)return alert('Enter payment amount');
+  if(!fromId)return alert('Select account to pay from');
+  const fromAcc=S.accounts.find(a=>a.id===fromId);
+  if(!fromAcc)return;
+  fromAcc.balance-=amt;
+  acc.balance=Math.max(0,acc.balance-amt);
+  S.expenses.push({id:uid(),amount:amt,category:'Bills & Utilities',note:`${acc.name} Payment`,date,accountId:fromId});
+  markCCHandled(accId,ym(date));
+  save();closeModal();renderMain();
 }
 
 // ── LOANS ────────────────────────────────────────────────────────────
@@ -805,7 +859,7 @@ function markRecPaid(id){
   if(!r||recPaidThisMonth(id))return;
   const e={id:uid(),amount:+r.amount,category:r.category,note:r.name,date:today(),accountId:r.accountId||'',recurringId:id};
   S.expenses.push(e);
-  if(r.accountId){const a=S.accounts.find(a=>a.id===r.accountId);if(a)a.balance-=+r.amount;}
+  if(r.accountId){const a=S.accounts.find(a=>a.id===r.accountId);if(a){if(a.type==='Credit Card')a.balance+=+r.amount;else a.balance-=+r.amount;}}
   save();renderMain();
 }
 function logSIP(id){
@@ -847,6 +901,7 @@ function overlayClick(e){if(e.target===document.getElementById('modal-overlay'))
 function modalBody(type,ex){
   const v=(f,fb='')=>ex?ex[f]??fb:fb;
   const accOpts=(excCC=false)=>S.accounts.filter(a=>!excCC||a.type!=='Credit Card').map(a=>`<option value="${a.id}" ${v('accountId')===a.id?'selected':''}>${a.name}</option>`).join('');
+  const allAccWithCC=()=>S.accounts.map(a=>`<option value="${a.id}" ${v('accountId')===a.id?'selected':''}>${a.name}${a.type==='Credit Card'?' 💳':''}</option>`).join('');
   const catOpts=CATS.map(c=>`<option value="${c.name}" ${v('category',CATS[0].name)===c.name?'selected':''}>${c.emoji} ${c.name}</option>`).join('');
   const loanOpts=S.loans_borrowed.filter(l=>loanStats(l).left>0).map(l=>{const st=loanStats(l);return`<option value="${l.id}" data-emi="${Math.round(st.emi)}">${l.name} (${fmt(st.emi)}/mo)</option>`;}).join('');
 
@@ -858,7 +913,7 @@ function modalBody(type,ex){
     </div>
     <div class="field"><label>Note</label><input type="text" id="f-note" value="${v('note')}" placeholder="e.g. Lunch, Petrol, Zomato"></div>
     <div class="field"><label>Date</label><input type="date" id="f-date" value="${v('date',today())}"></div>
-    ${accOpts(true)?`<div class="field"><label>Deduct from account</label><select id="f-acc"><option value="">Don't deduct</option>${accOpts(true)}</select></div>`:''}
+    ${S.accounts.length>0?`<div class="field"><label>Charge to account <span style="font-size:10px;color:#64748B">(bank = deducts balance · 💳 CC = adds to outstanding)</span></label><select id="f-acc"><option value="">Don't track</option>${allAccWithCC()}</select></div>`:''}
     <button class="btn btn-full" onclick="saveExpense()">${ex?'Update Expense':'Save Expense'}</button>
     <script>function onCatChange(sel){document.getElementById('loan-pick').style.display=sel.value==='EMI'?'block':'none';}
     function prefillEMI(sel){const opt=sel.options[sel.selectedIndex];const emi=opt.dataset.emi;if(emi)document.getElementById('f-amt').value=emi;}<\/script>`;
@@ -881,11 +936,18 @@ function modalBody(type,ex){
     <button class="btn btn-full" onclick="saveInvestment()">${ex?'Update':'Add to Portfolio'}</button>`;
 
   if(type==='account') return `
-    <div class="field"><label>Account Name</label><input type="text" id="f-name" value="${v('name')}" placeholder="e.g. HDFC Savings, PhonePe"></div>
-    <div class="field"><label>Type</label><select id="f-type">${ACC_TYPES.map(t=>`<option ${v('type')===t?'selected':''}>${t}</option>`).join('')}</select></div>
-    <div class="field"><label>Balance (₹)</label><input type="number" id="f-bal" value="${v('balance')}" placeholder="0" min="0"></div>
-    <div class="hint">For Credit Cards, enter the outstanding amount you owe.</div>
-    <button class="btn btn-full" onclick="saveAccount()">${ex?'Update':'Add Account'}</button>`;
+    <div class="field"><label>Account Name</label><input type="text" id="f-name" value="${v('name')}" placeholder="e.g. HDFC Savings, ICICI Credit Card"></div>
+    <div class="field"><label>Type</label><select id="f-type" onchange="toggleCCFields(this.value)">${ACC_TYPES.map(t=>`<option ${v('type',ACC_TYPES[0])===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="field"><label>${v('type')==='Credit Card'?'Current Outstanding (₹)':'Balance (₹)'}</label><input type="number" id="f-bal" value="${v('balance')}" placeholder="0" min="0"></div>
+    <div id="cc-fields" style="display:${v('type')==='Credit Card'?'block':'none'}">
+      <div style="height:1px;background:#1E2D4A;margin:2px 0 12px"></div>
+      <div class="field"><label>Credit Limit (₹)</label><input type="number" id="f-limit" value="${v('ccLimit','')}" placeholder="e.g. 100000" min="0"></div>
+      <div class="field"><label>Statement Date (day of month)</label><input type="number" id="f-billing" value="${v('ccBillingDate','')}" placeholder="e.g. 15 — when monthly statement generates" min="1" max="31"></div>
+      <div class="field"><label>Payment Due Date (day of month)</label><input type="number" id="f-due" value="${v('ccDueDate','')}" placeholder="e.g. 5 — of the following month" min="1" max="31"></div>
+      <div class="field"><label>Interest Rate (% p.a.)</label><input type="number" id="f-apr" value="${v('ccAPR','')}" placeholder="e.g. 36 — only matters if you carry balance" step="0.1" min="0"></div>
+    </div>
+    <button class="btn btn-full" onclick="saveAccount()">${ex?'Update':'Add Account'}</button>
+    <script>function toggleCCFields(t){document.getElementById('cc-fields').style.display=t==='Credit Card'?'block':'none';const bl=document.querySelector('#modal-body .field:nth-child(3) label');if(bl)bl.textContent=t==='Credit Card'?'Current Outstanding (₹)':'Balance (₹)';}<\/script>`;
 
   if(type==='loan_borrow') return `
     <div class="hint mb12" style="padding:8px 10px;background:#060B14;border-radius:7px;border:1px solid #1E2D4A">Enter 4 values. EMI and all calculations are automatic.</div>
@@ -920,7 +982,7 @@ function modalBody(type,ex){
     <div class="field"><label>Amount (₹)</label><input type="number" id="f-amount" value="${v('amount')}" placeholder="0" min="0"></div>
     <div class="field"><label>Frequency</label><select id="f-freq">${FREQ.map(f=>`<option ${v('frequency','monthly')===f?'selected':''}>${f}</option>`).join('')}</select></div>
     <div class="field"><label>Day of Month (due date)</label><input type="number" id="f-day" value="${v('dayOfMonth','')}" placeholder="e.g. 5 for 5th of every month" min="1" max="31"></div>
-    ${accOpts(true)?`<div class="field"><label>Deduct from account when marked paid</label><select id="f-acc"><option value="">Don't deduct</option>${accOpts(true)}</select></div>`:''}
+    ${accOpts(false)?`<div class="field"><label>Charge to account when marked paid <span style="font-size:10px;color:#64748B">(bank deducts · 💳 CC adds to outstanding)</span></label><select id="f-acc"><option value="">Don't track</option>${accOpts(false)}</select></div>`:''}
     <button class="btn btn-full" onclick="saveRecurring()">${ex?'Update':'Add Recurring'}</button>`;
 
   if(type==='sip') return `
@@ -941,7 +1003,13 @@ function saveExpense(){
   const obj={id:editingId||uid(),amount:amt,category:g('f-cat')||CATS[0].name,note:g('f-note'),date:g('f-date')||today(),accountId:g('f-acc')||'',loanId};
   upsert('expenses',obj);
   const accId=g('f-acc');
-  if(accId&&!editingId){const a=S.accounts.find(a=>a.id===accId);if(a)a.balance-=amt;}
+  if(accId&&!editingId){
+    const a=S.accounts.find(a=>a.id===accId);
+    if(a){
+      if(a.type==='Credit Card') a.balance+=amt; // CC outstanding goes up
+      else a.balance-=amt; // bank balance goes down
+    }
+  }
   save();closeModal();renderMain();
 }
 function saveIncome(){
@@ -963,7 +1031,14 @@ function saveInvestment(){
 function saveAccount(){
   const name=g('f-name');
   if(!name)return alert('Enter account name');
-  const obj={id:editingId||uid(),name,type:g('f-type')||ACC_TYPES[0],balance:parseFloat(g('f-bal'))||0};
+  const type=g('f-type')||ACC_TYPES[0];
+  const obj={id:editingId||uid(),name,type,balance:parseFloat(g('f-bal'))||0};
+  if(type==='Credit Card'){
+    obj.ccLimit=parseFloat(g('f-limit'))||0;
+    obj.ccBillingDate=parseInt(g('f-billing'))||null;
+    obj.ccDueDate=parseInt(g('f-due'))||null;
+    obj.ccAPR=parseFloat(g('f-apr'))||0;
+  }
   upsert('accounts',obj);save();closeModal();renderMain();
 }
 function saveLoanBorrow(){
@@ -1025,7 +1100,71 @@ function importData(event){
   reader.readAsText(file);
 }
 
-// ── EMI AUTO-CHECK ────────────────────────────────────────────────────
+
+// ── CC LOG + NOTIFICATION ─────────────────────────────────────────────
+function getCCLog(){try{return JSON.parse(localStorage.getItem('fv5_cclog')||'{}');}catch{return{};}}
+function saveCCLog(log){localStorage.setItem('fv5_cclog',JSON.stringify(log));}
+function ccBillingHandled(accId,monthStr){return !!getCCLog()[accId+'_'+monthStr];}
+function markCCHandled(accId,monthStr){const l=getCCLog();l[accId+'_'+monthStr]=1;saveCCLog(l);}
+function checkDueCCPayments(){
+  const now=new Date(),pending=[];
+  S.accounts.filter(a=>a.type==='Credit Card'&&a.ccBillingDate&&(+a.balance||0)>0).forEach(acc=>{
+    const billingDate=new Date(now.getFullYear(),now.getMonth(),+acc.ccBillingDate);
+    if(billingDate>now)return;
+    const monthStr=now.toISOString().slice(0,7);
+    if(!ccBillingHandled(acc.id,monthStr))pending.push({acc,monthStr});
+  });
+  if(pending.length===0)return;
+  showCCNotifPanel(pending);
+}
+function showCCNotifPanel(pending){
+  document.getElementById('cc-notif-panel')?.remove();
+  const bankOpts=S.accounts.filter(a=>a.type!=='Credit Card').map(a=>`<option value="${a.id}">${a.name} (${fmt(a.balance)})</option>`).join('');
+  const rows=pending.map(p=>{
+    const now=new Date();
+    const dueDate=p.acc.ccDueDate?new Date(now.getFullYear(),now.getMonth()+(now.getDate()>+p.acc.ccBillingDate?1:0),+p.acc.ccDueDate):null;
+    const daysLeft=dueDate?Math.ceil((dueDate-now)/(1000*60*60*24)):null;
+    return`<div style="border-bottom:1px solid #1E2D4A;padding:12px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div><div style="font-size:13px;font-weight:700">💳 ${p.acc.name}</div>
+        <div style="font-size:10px;color:${daysLeft!==null&&daysLeft<=3?'#EF4444':daysLeft<=7?'#F0B429':'#64748B'}">${daysLeft!==null?`Due in ${daysLeft} days`:'Pay before due date'}</div></div>
+        <div style="font-size:17px;font-weight:800;color:#EF4444">${fmt(p.acc.balance)}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="ccnb-${p.acc.id}" style="flex:1;background:#060B14;border:1px solid #1E2D4A;border-radius:6px;padding:5px 8px;color:#E2E8F0;font-size:11px;font-family:inherit">${bankOpts||'<option value="">No bank accounts</option>'}</select>
+        <button onclick="ccNotifPay('${p.acc.id}','${p.monthStr}')" style="background:#10B981;border:none;border-radius:6px;padding:5px 12px;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Pay Full</button>
+        <button onclick="ccNotifSkip('${p.acc.id}','${p.monthStr}')" style="background:#1E2D4A;border:none;border-radius:6px;padding:5px 10px;color:#94A3B8;font-size:11px;cursor:pointer">Remind Later</button>
+      </div>
+    </div>`;}).join('');
+  const panel=document.createElement('div');
+  panel.id='cc-notif-panel';
+  panel.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#0D1526;border-top:2px solid #EF4444;z-index:149;padding:14px 16px;max-height:55vh;overflow-y:auto;box-shadow:0 -4px 24px rgba(0,0,0,.5)';
+  panel.innerHTML=`<div style="max-width:960px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;font-weight:700;color:#EF4444">💳 Credit Card Payment Due</span><button onclick="document.getElementById('cc-notif-panel')?.remove()" style="background:none;border:none;color:#64748B;font-size:20px;cursor:pointer">✕</button></div>${rows}</div>`;
+  document.body.appendChild(panel);
+  window._ccPending=pending;
+}
+function ccNotifPay(accId,monthStr){
+  const acc=S.accounts.find(a=>a.id===accId);
+  if(!acc)return;
+  const fromId=document.getElementById('ccnb-'+accId)?.value;
+  if(!fromId)return alert('Select a bank account to pay from');
+  const fromAcc=S.accounts.find(a=>a.id===fromId);
+  if(!fromAcc)return;
+  const amt=+acc.balance;
+  fromAcc.balance-=amt;
+  acc.balance=0;
+  S.expenses.push({id:uid(),amount:amt,category:'Bills & Utilities',note:`${acc.name} Payment`,date:today(),accountId:fromId});
+  markCCHandled(accId,monthStr);
+  save();document.getElementById('cc-notif-panel')?.remove();renderMain();
+}
+function ccNotifSkip(accId,monthStr){
+  markCCHandled(accId,monthStr);
+  const remaining=(window._ccPending||[]).filter(p=>p.acc.id!==accId);
+  window._ccPending=remaining;
+  if(remaining.length===0)document.getElementById('cc-notif-panel')?.remove();
+  else showCCNotifPanel(remaining);
+}
+
 // ── EMI AUTO-CHECK ────────────────────────────────────────────────────
 // emiLog tracks which loan+month combos have been handled (logged or skipped)
 // Stored in localStorage separately so it persists without touching S
@@ -1138,6 +1277,7 @@ function dismissEMIPanel(){document.getElementById('emi-panel')?.remove();}
 // ── INIT ─────────────────────────────────────────────────────────────
 renderMain();
 setTimeout(checkDueEMIs,600);
+setTimeout(checkDueCCPayments,900);
 </script>
 </body>
 </html>
